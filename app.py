@@ -1,18 +1,16 @@
 import streamlit as st
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
 import cv2
 import numpy as np
-import math
+from streamlit_webrtc import webrtc_streamer, VideoProcessorBase
 
-st.title("Air Geometry AI")
-st.write("Use GREEN tape on finger and draw shapes in air")
+st.title("Air Shape Detector")
 
-class ShapeDetector(VideoTransformerBase):
+class VideoProcessor(VideoProcessorBase):
 
     def __init__(self):
         self.points = []
 
-    def transform(self, frame):
+    def recv(self, frame):
 
         img = frame.to_ndarray(format="bgr24")
 
@@ -20,19 +18,15 @@ class ShapeDetector(VideoTransformerBase):
 
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-        # GREEN COLOR
+        # GREEN COLOR RANGE
         lower_green = np.array([35, 80, 80])
         upper_green = np.array([85, 255, 255])
 
-        mask = cv2.inRange(
-            hsv,
-            lower_green,
-            upper_green
-        )
+        mask = cv2.inRange(hsv, lower_green, upper_green)
 
         contours, _ = cv2.findContours(
             mask,
-            cv2.RETR_TREE,
+            cv2.RETR_EXTERNAL,
             cv2.CHAIN_APPROX_SIMPLE
         )
 
@@ -57,7 +51,7 @@ class ShapeDetector(VideoTransformerBase):
                     -1
                 )
 
-        # DRAW PATH
+        # DRAW TRACK
         for p in self.points:
 
             cv2.circle(
@@ -68,12 +62,12 @@ class ShapeDetector(VideoTransformerBase):
                 -1
             )
 
-        # DETECT SHAPE
+        # SHAPE DETECTION
         if len(self.points) > 30:
 
             pts = np.array(
                 self.points,
-                dtype=np.int32
+                np.int32
             )
 
             peri = cv2.arcLength(
@@ -95,39 +89,14 @@ class ShapeDetector(VideoTransformerBase):
                 shape = "Triangle"
 
             elif sides == 4:
-
-                x, y, w, h = cv2.boundingRect(approx)
-
-                ratio = w / float(h)
-
-                if 0.95 <= ratio <= 1.05:
-                    shape = "Square"
-                else:
-                    shape = "Rectangle"
+                shape = "Rectangle"
 
             elif sides > 8:
                 shape = "Circle"
 
-            cv2.polylines(
-                img,
-                [approx],
-                True,
-                (0, 255, 255),
-                3
-            )
-
-            # AREA
-            area = cv2.contourArea(approx)
-
-            # PERIMETER
-            perimeter = cv2.arcLength(
-                approx,
-                True
-            )
-
             cv2.putText(
                 img,
-                f"{shape}",
+                shape,
                 (30, 50),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 1,
@@ -135,33 +104,13 @@ class ShapeDetector(VideoTransformerBase):
                 3
             )
 
-            cv2.putText(
-                img,
-                f"Area: {int(area)}",
-                (30, 100),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.8,
-                (255, 255, 255),
-                2
-            )
-
-            cv2.putText(
-                img,
-                f"Perimeter: {int(perimeter)}",
-                (30, 140),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.8,
-                (255, 255, 255),
-                2
-            )
-
         return img
 
 webrtc_streamer(
-    key="geometry",
-    video_transformer_factory=ShapeDetector,
+    key="example",
+    video_processor_factory=VideoProcessor,
     media_stream_constraints={
         "video": True,
-        "audio": False
-    }
+        "audio": False,
+    },
 )
