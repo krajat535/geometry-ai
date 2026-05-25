@@ -8,6 +8,8 @@ import av
 
 st.title("AI Geometry Air Drawing")
 
+import mediapipe as mp
+
 mp_hands = mp.solutions.hands
 
 class GeometryDetector(VideoTransformerBase):
