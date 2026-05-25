@@ -4,9 +4,10 @@ import cv2
 import numpy as np
 import math
 
-st.title("AI Geometry Air Drawing")
+st.title("Air Geometry AI")
+st.write("Use GREEN tape on finger and draw shapes in air")
 
-class GeometryDetector(VideoTransformerBase):
+class ShapeDetector(VideoTransformerBase):
 
     def __init__(self):
         self.points = []
@@ -19,14 +20,14 @@ class GeometryDetector(VideoTransformerBase):
 
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-        # Detect RED object
-        lower_red = np.array([0,120,70])
-        upper_red = np.array([10,255,255])
+        # GREEN COLOR
+        lower_green = np.array([35, 80, 80])
+        upper_green = np.array([85, 255, 255])
 
         mask = cv2.inRange(
             hsv,
-            lower_red,
-            upper_red
+            lower_green,
+            upper_green
         )
 
         contours, _ = cv2.findContours(
@@ -41,31 +42,33 @@ class GeometryDetector(VideoTransformerBase):
 
             if area > 1000:
 
-                x,y,w,h = cv2.boundingRect(cnt)
+                x, y, w, h = cv2.boundingRect(cnt)
 
-                cx = x + w//2
-                cy = y + h//2
+                cx = x + w // 2
+                cy = y + h // 2
 
-                self.points.append((cx,cy))
+                self.points.append((cx, cy))
 
                 cv2.circle(
                     img,
-                    (cx,cy),
+                    (cx, cy),
                     8,
-                    (0,255,0),
+                    (0, 255, 0),
                     -1
                 )
 
+        # DRAW PATH
         for p in self.points:
 
             cv2.circle(
                 img,
                 p,
-                4,
-                (255,0,0),
+                3,
+                (255, 0, 0),
                 -1
             )
 
+        # DETECT SHAPE
         if len(self.points) > 30:
 
             pts = np.array(
@@ -73,7 +76,10 @@ class GeometryDetector(VideoTransformerBase):
                 dtype=np.int32
             )
 
-            peri = cv2.arcLength(pts, False)
+            peri = cv2.arcLength(
+                pts,
+                False
+            )
 
             approx = cv2.approxPolyDP(
                 pts,
@@ -83,57 +89,79 @@ class GeometryDetector(VideoTransformerBase):
 
             sides = len(approx)
 
-            cv2.polylines(
-                img,
-                [approx],
-                False,
-                (0,255,255),
-                3
-            )
+            shape = "Unknown"
 
             if sides == 3:
-
-                cv2.putText(
-                    img,
-                    "Triangle",
-                    (50,50),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1,
-                    (0,255,0),
-                    2
-                )
+                shape = "Triangle"
 
             elif sides == 4:
 
-                cv2.putText(
-                    img,
-                    "Rectangle",
-                    (50,50),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1,
-                    (0,255,0),
-                    2
-                )
+                x, y, w, h = cv2.boundingRect(approx)
+
+                ratio = w / float(h)
+
+                if 0.95 <= ratio <= 1.05:
+                    shape = "Square"
+                else:
+                    shape = "Rectangle"
 
             elif sides > 8:
+                shape = "Circle"
 
-                cv2.putText(
-                    img,
-                    "Circle",
-                    (50,50),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1,
-                    (0,255,0),
-                    2
-                )
+            cv2.polylines(
+                img,
+                [approx],
+                True,
+                (0, 255, 255),
+                3
+            )
+
+            # AREA
+            area = cv2.contourArea(approx)
+
+            # PERIMETER
+            perimeter = cv2.arcLength(
+                approx,
+                True
+            )
+
+            cv2.putText(
+                img,
+                f"{shape}",
+                (30, 50),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                (0, 255, 0),
+                3
+            )
+
+            cv2.putText(
+                img,
+                f"Area: {int(area)}",
+                (30, 100),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (255, 255, 255),
+                2
+            )
+
+            cv2.putText(
+                img,
+                f"Perimeter: {int(perimeter)}",
+                (30, 140),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (255, 255, 255),
+                2
+            )
 
         return img
 
 webrtc_streamer(
     key="geometry",
-    video_transformer_factory=GeometryDetector
-)
-
-st.write(
-    "Use RED tape on finger and draw shapes in air"
+    video_transformer_factory=ShapeDetector,
+    media_stream_constraints={
+        "video": True,
+        "audio": False
+    }
 )
