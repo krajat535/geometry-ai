@@ -1,16 +1,17 @@
 import streamlit as st
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
 import cv2
 import numpy as np
-from streamlit_webrtc import webrtc_streamer, VideoProcessorBase
+import math
 
-st.title("Air Shape Detector")
+st.title("AI Geometry Air Drawing")
 
-class VideoProcessor(VideoProcessorBase):
+class GeometryDetector(VideoTransformerBase):
 
     def __init__(self):
         self.points = []
 
-    def recv(self, frame):
+    def transform(self, frame):
 
         img = frame.to_ndarray(format="bgr24")
 
@@ -18,15 +19,19 @@ class VideoProcessor(VideoProcessorBase):
 
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-        # GREEN COLOR RANGE
-        lower_green = np.array([35, 80, 80])
-        upper_green = np.array([85, 255, 255])
+        # Detect RED object
+        lower_red = np.array([0,120,70])
+        upper_red = np.array([10,255,255])
 
-        mask = cv2.inRange(hsv, lower_green, upper_green)
+        mask = cv2.inRange(
+            hsv,
+            lower_red,
+            upper_red
+        )
 
         contours, _ = cv2.findContours(
             mask,
-            cv2.RETR_EXTERNAL,
+            cv2.RETR_TREE,
             cv2.CHAIN_APPROX_SIMPLE
         )
 
@@ -36,44 +41,39 @@ class VideoProcessor(VideoProcessorBase):
 
             if area > 1000:
 
-                x, y, w, h = cv2.boundingRect(cnt)
+                x,y,w,h = cv2.boundingRect(cnt)
 
-                cx = x + w // 2
-                cy = y + h // 2
+                cx = x + w//2
+                cy = y + h//2
 
-                self.points.append((cx, cy))
+                self.points.append((cx,cy))
 
                 cv2.circle(
                     img,
-                    (cx, cy),
+                    (cx,cy),
                     8,
-                    (0, 255, 0),
+                    (0,255,0),
                     -1
                 )
 
-        # DRAW TRACK
         for p in self.points:
 
             cv2.circle(
                 img,
                 p,
-                3,
-                (255, 0, 0),
+                4,
+                (255,0,0),
                 -1
             )
 
-        # SHAPE DETECTION
         if len(self.points) > 30:
 
             pts = np.array(
                 self.points,
-                np.int32
+                dtype=np.int32
             )
 
-            peri = cv2.arcLength(
-                pts,
-                False
-            )
+            peri = cv2.arcLength(pts, False)
 
             approx = cv2.approxPolyDP(
                 pts,
@@ -83,34 +83,57 @@ class VideoProcessor(VideoProcessorBase):
 
             sides = len(approx)
 
-            shape = "Unknown"
-
-            if sides == 3:
-                shape = "Triangle"
-
-            elif sides == 4:
-                shape = "Rectangle"
-
-            elif sides > 8:
-                shape = "Circle"
-
-            cv2.putText(
+            cv2.polylines(
                 img,
-                shape,
-                (30, 50),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (0, 255, 0),
+                [approx],
+                False,
+                (0,255,255),
                 3
             )
+
+            if sides == 3:
+
+                cv2.putText(
+                    img,
+                    "Triangle",
+                    (50,50),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1,
+                    (0,255,0),
+                    2
+                )
+
+            elif sides == 4:
+
+                cv2.putText(
+                    img,
+                    "Rectangle",
+                    (50,50),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1,
+                    (0,255,0),
+                    2
+                )
+
+            elif sides > 8:
+
+                cv2.putText(
+                    img,
+                    "Circle",
+                    (50,50),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1,
+                    (0,255,0),
+                    2
+                )
 
         return img
 
 webrtc_streamer(
-    key="example",
-    video_processor_factory=VideoProcessor,
-    media_stream_constraints={
-        "video": True,
-        "audio": False,
-    },
+    key="geometry",
+    video_transformer_factory=GeometryDetector
+)
+
+st.write(
+    "Use RED tape on finger and draw shapes in air"
 )
