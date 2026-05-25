@@ -3,7 +3,6 @@ from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
 import cv2
 import numpy as np
 import math
-import av
 
 st.title("AI Geometry Air Drawing")
 
@@ -11,18 +10,6 @@ class GeometryDetector(VideoTransformerBase):
 
     def __init__(self):
         self.points = []
-
-    def detect_shape(self, pts):
-
-        peri = cv2.arcLength(pts, True)
-
-        approx = cv2.approxPolyDP(
-            pts,
-            0.02 * peri,
-            True
-        )
-
-        return approx
 
     def transform(self, frame):
 
@@ -32,7 +19,7 @@ class GeometryDetector(VideoTransformerBase):
 
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-        # RED color range
+        # Detect RED object
         lower_red = np.array([0,120,70])
         upper_red = np.array([10,255,255])
 
@@ -69,7 +56,6 @@ class GeometryDetector(VideoTransformerBase):
                     -1
                 )
 
-        # Draw path
         for p in self.points:
 
             cv2.circle(
@@ -80,67 +66,32 @@ class GeometryDetector(VideoTransformerBase):
                 -1
             )
 
-        # Shape detection
-        if len(self.points) > 50:
+        if len(self.points) > 30:
 
             pts = np.array(
                 self.points,
                 dtype=np.int32
             )
 
-            approx = self.detect_shape(pts)
+            peri = cv2.arcLength(pts, False)
+
+            approx = cv2.approxPolyDP(
+                pts,
+                0.02 * peri,
+                False
+            )
 
             sides = len(approx)
 
             cv2.polylines(
                 img,
                 [approx],
-                True,
+                False,
                 (0,255,255),
                 3
             )
 
-            # Circle
-            if sides > 8:
-
-                (x,y), radius = cv2.minEnclosingCircle(pts)
-
-                area = math.pi * radius * radius
-
-                perimeter = 2 * math.pi * radius
-
-                cv2.putText(
-                    img,
-                    "Circle",
-                    (50,50),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1,
-                    (0,255,0),
-                    2
-                )
-
-                cv2.putText(
-                    img,
-                    f"Area: {int(area)}",
-                    (50,100),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.8,
-                    (255,255,255),
-                    2
-                )
-
-                cv2.putText(
-                    img,
-                    f"Circumference: {int(perimeter)}",
-                    (50,140),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.8,
-                    (255,255,255),
-                    2
-                )
-
-            # Triangle
-            elif sides == 3:
+            if sides == 3:
 
                 cv2.putText(
                     img,
@@ -152,12 +103,23 @@ class GeometryDetector(VideoTransformerBase):
                     2
                 )
 
-            # Rectangle/Square
             elif sides == 4:
 
                 cv2.putText(
                     img,
-                    "Rectangle/Square",
+                    "Rectangle",
+                    (50,50),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1,
+                    (0,255,0),
+                    2
+                )
+
+            elif sides > 8:
+
+                cv2.putText(
+                    img,
+                    "Circle",
                     (50,50),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     1,
@@ -173,5 +135,5 @@ webrtc_streamer(
 )
 
 st.write(
-    "Wear RED tape on finger and draw shapes in air"
+    "Use RED tape on finger and draw shapes in air"
 )
