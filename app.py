@@ -4,55 +4,18 @@ import cv2
 import numpy as np
 import math
 
-# ---------------- PAGE CONFIG ----------------
-
-st.set_page_config(
-    page_title="VisionMath AI",
-    layout="wide"
-)
+st.set_page_config(page_title="VisionMath AI")
 
 st.title("VisionMath AI")
-st.subheader("Draw Shapes in Air Using Green Tape on Finger")
+st.write("Draw shapes in air using GREEN tape on finger")
 
-st.write("""
-Supported Shapes:
-- Triangle
-- Square
-- Rectangle
-- Pentagon
-- Hexagon
-- Heptagon
-- Octagon
-- Circle
-- Ellipse
-""")
-
-st.info("Use BRIGHT GREEN tape/sticker on fingertip for best detection")
-
-# ---------------- SESSION ----------------
-
-if "clear" not in st.session_state:
-    st.session_state.clear = False
-
-if st.button("Clear Drawing"):
-    st.session_state.clear = True
-
-# ---------------- DETECTOR CLASS ----------------
+# ---------------- DETECTOR ----------------
 
 class GeometryDetector(VideoTransformerBase):
 
     def __init__(self):
         self.points = []
 
-    # Distance calculation
-    def distance(self, p1, p2):
-
-        return math.sqrt(
-            (p1[0] - p2[0])**2 +
-            (p1[1] - p2[1])**2
-        )
-
-    # Shape detection
     def detect_shape(self, approx):
 
         sides = len(approx)
@@ -100,21 +63,15 @@ class GeometryDetector(VideoTransformerBase):
 
         return "Unknown"
 
-    # Main transform
     def transform(self, frame):
 
         img = frame.to_ndarray(format="bgr24")
 
         img = cv2.flip(img, 1)
 
-        if st.session_state.clear:
-            self.points = []
-            st.session_state.clear = False
-
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-        # ---------------- GREEN DETECTION ----------------
-
+        # GREEN COLOR RANGE
         lower_green = np.array([35, 80, 80])
         upper_green = np.array([85, 255, 255])
 
@@ -124,7 +81,7 @@ class GeometryDetector(VideoTransformerBase):
             upper_green
         )
 
-        # Blur for smoothness
+        # Smooth mask
         mask = cv2.GaussianBlur(mask, (15, 15), 0)
 
         kernel = np.ones((5, 5), np.uint8)
@@ -132,8 +89,6 @@ class GeometryDetector(VideoTransformerBase):
         mask = cv2.erode(mask, kernel)
 
         mask = cv2.dilate(mask, kernel)
-
-        # ---------------- FIND CONTOURS ----------------
 
         contours, _ = cv2.findContours(
             mask,
@@ -152,18 +107,15 @@ class GeometryDetector(VideoTransformerBase):
                 cx = x + w // 2
                 cy = y + h // 2
 
-                # Smooth tracking
+                # Smooth movement
                 if len(self.points) > 0:
 
-                    prev_x, prev_y = self.points[-1]
+                    px, py = self.points[-1]
 
-                    smooth_x = int((prev_x + cx) / 2)
-                    smooth_y = int((prev_y + cy) / 2)
+                    cx = int((px + cx) / 2)
+                    cy = int((py + cy) / 2)
 
-                    self.points.append((smooth_x, smooth_y))
-
-                else:
-                    self.points.append((cx, cy))
+                self.points.append((cx, cy))
 
                 cv2.circle(
                     img,
@@ -173,8 +125,7 @@ class GeometryDetector(VideoTransformerBase):
                     -1
                 )
 
-        # ---------------- DRAW TRACK PATH ----------------
-
+        # Draw path
         for p in self.points:
 
             cv2.circle(
@@ -185,8 +136,7 @@ class GeometryDetector(VideoTransformerBase):
                 -1
             )
 
-        # ---------------- SHAPE ANALYSIS ----------------
-
+        # Shape Detection
         if len(self.points) > 40:
 
             pts = np.array(
@@ -215,34 +165,30 @@ class GeometryDetector(VideoTransformerBase):
                 3
             )
 
-            # ---------------- TEXT ----------------
-
             cv2.putText(
                 img,
                 f"Shape: {shape}",
-                (40, 50),
+                (30, 50),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 1,
                 (0, 255, 0),
                 3
             )
 
-            # ---------------- AREA ----------------
-
+            # AREA
             area = cv2.contourArea(approx)
 
             cv2.putText(
                 img,
                 f"Area: {int(area)}",
-                (40, 100),
+                (30, 100),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.8,
                 (255, 255, 255),
                 2
             )
 
-            # ---------------- PERIMETER ----------------
-
+            # PERIMETER
             perimeter = cv2.arcLength(
                 approx,
                 True
@@ -251,49 +197,33 @@ class GeometryDetector(VideoTransformerBase):
             cv2.putText(
                 img,
                 f"Perimeter: {int(perimeter)}",
-                (40, 140),
+                (30, 140),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.8,
                 (255, 255, 255),
                 2
             )
 
-            # ---------------- SIDES ----------------
-
-            sides = len(approx)
-
+            # SIDES
             cv2.putText(
                 img,
-                f"Sides: {sides}",
-                (40, 180),
+                f"Sides: {len(approx)}",
+                (30, 180),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.8,
                 (255, 255, 255),
                 2
             )
 
-            # ---------------- CIRCLE DETAILS ----------------
-
+            # Circle details
             if shape == "Circle":
 
                 (x, y), radius = cv2.minEnclosingCircle(approx)
 
-                diameter = radius * 2
-
                 cv2.putText(
                     img,
                     f"Radius: {int(radius)}",
-                    (40, 220),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.8,
-                    (255, 255, 255),
-                    2
-                )
-
-                cv2.putText(
-                    img,
-                    f"Diameter: {int(diameter)}",
-                    (40, 260),
+                    (30, 220),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.8,
                     (255, 255, 255),
@@ -302,14 +232,13 @@ class GeometryDetector(VideoTransformerBase):
 
         return img
 
-# ---------------- START CAMERA ----------------
+# ---------------- CAMERA ----------------
 
 webrtc_streamer(
-    key="visionmath-ai",
+    key="visionmath",
     video_transformer_factory=GeometryDetector,
     media_stream_constraints={
         "video": True,
         "audio": False
-    },
-    async_transform=True
+    }
 )
